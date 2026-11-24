@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF স্প্লিট ও বাংলা OCR টুল</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{
+  --bg:#f4f6fb; --card:#fff; --ink:#1b2333; --muted:#6a7488; --line:#e3e8f2;
+  --brand:#3b5bdb; --brand-d:#2f49b3; --ok:#12805c; --warn:#b45309; --bad:#c92a2a;
+  --radius:14px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans Bengali',system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.6}
+header{background:linear-gradient(135deg,#3b5bdb,#5f3dc4);color:#fff;padding:28px 20px 56px}
+header h1{margin:0 auto;max-width:980px;font-size:1.6rem}
+header p{margin:6px auto 0;max-width:980px;opacity:.9;font-size:.95rem}
+main{max-width:980px;margin:-34px auto 40px;padding:0 16px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;box-shadow:0 2px 10px rgba(30,40,80,.05)}
+.card h2{margin:0 0 12px;font-size:1.08rem;display:flex;align-items:center;gap:10px}
+.num{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--brand);color:#fff;font-size:.85rem;font-weight:700}
+.drop{border:2px dashed #b8c3e6;border-radius:12px;padding:26px;text-align:center;cursor:pointer;background:#f8faff;transition:.15s}
+.drop:hover,.drop.on{border-color:var(--brand);background:#eef2ff}
+.drop b{color:var(--brand)}
+.muted{color:var(--muted);font-size:.88rem}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:4px;min-width:130px;flex:1}
+.field label{font-size:.84rem;color:var(--muted);font-weight:500}
+input[type=number],input[type=text],select{font:inherit;padding:8px 10px;border:1px solid #cfd6e8;border-radius:9px;background:#fff;color:var(--ink);width:100%}
+input:focus,select:focus{outline:2px solid #c5d0ff;border-color:var(--brand)}
+input[type=range]{width:100%}
+button{font:inherit;cursor:pointer;border:0;border-radius:9px;padding:8px 14px;font-weight:600;background:var(--brand);color:#fff;transition:.12s}
+button:hover{background:var(--brand-d)}
+button.ghost{background:#eef1fb;color:var(--brand)}
+button.ghost:hover{background:#e0e6fa}
+button.stop{background:var(--bad)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.chk{display:flex;align-items:center;gap:8px;font-size:.92rem}
+.chk input{width:18px;height:18px}
+details{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:#fbfcff}
+details summary{cursor:pointer;font-weight:600}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:12px}
+.preview{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.preview figure{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fafafa}
+.preview figcaption{font-size:.8rem;padding:4px 10px;background:#f0f3fb;color:var(--muted)}
+.preview canvas{width:100%;height:auto;display:block}
+textarea{width:100%;min-height:140px;font:inherit;padding:10px;border:1px solid #cfd6e8;border-radius:9px;margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:.93rem}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:.8rem;color:var(--muted);font-weight:600}
+td.act{display:flex;gap:6px;flex-wrap:wrap}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:.78rem;font-weight:600;background:#eef1fb;color:var(--brand)}
+.pill.ok{background:#e3f6ee;color:var(--ok)}
+.pill.run{background:#fff3dd;color:var(--warn)}
+.pill.err{background:#ffe3e3;color:var(--bad)}
+.bar{height:10px;background:#e6eaf6;border-radius:99px;overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3b5bdb,#7048e8);transition:width .2s}
+#status{margin-top:8px;font-size:.9rem;color:var(--muted);min-height:1.4em}
+footer{max-width:980px;margin:0 auto 40px;padding:0 16px;color:var(--muted);font-size:.84rem}
+@media(max-width:640px){.preview{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>PDF স্প্লিট ও বাংলা OCR টুল</h1>
+  <p>বড় PDF-কে নির্দিষ্ট পেজ করে ভাগ করুন এবং স্ক্যান করা পেজ থেকে টেক্সট বের করুন। সবকিছু আপনার ব্রাউজারেই চলে, PDF কোথাও আপলোড হয় না।</p>
+</header>
+
+<main>
+  <section class="card">
+    <h2><span class="num">১</span> PDF বাছুন</h2>
+    <div class="drop" id="drop">
+      <div><b>এখানে PDF ফেলুন</b> বা ক্লিক করে বাছুন</div>
+      <div class="muted" id="fileinfo">এখনো কোনো ফাইল বাছা হয়নি</div>
+    </div>
+    <input type="file" id="file" accept="application/pdf" hidden>
+  </section>
+
+  <section class="card">
+    <h2><span class="num">২</span> ভাগ করুন</h2>
+    <div class="row">
+      <div class="field"><label>প্রতি ভাগে পেজ</label><input type="number" id="size" min="1" value="25"></div>
+      <div class="field"><label>শুরু পেজ</label><input type="number" id="from" min="1" value="1"></div>
+      <div class="field"><label>শেষ পেজ</label><input type="number" id="to" min="1" value="1"></div>
+      <div class="field"><label>ফাইলের নামের শুরু (ঐচ্ছিক)</label><input type="text" id="prefix" placeholder="যেমন: Bio1_Ch01"></div>
+    </div>
+    <div class="muted" style="margin-top:8px">নাম হবে এরকম: <b id="nameEx">—</b></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="num">৩</span> OCR সেটিং ও প্রিভিউ</h2>
+    <p class="muted" style="margin-top:0">আগে একটা পেজ প্রিভিউ করে দেখুন লেখা পরিষ্কার আসছে কি না। দাগ, ওয়াটারমার্ক বা ঝাপসা বেশি থাকলে নিচের স্লাইডার নাড়ান।</p>
+    <div class="row">
+      <div class="field"><label>প্রিভিউয়ের পেজ নম্বর</label><input type="number" id="pv" min="1" value="1"></div>
+      <button id="btnPrev" class="ghost" disabled>প্রিভিউ দেখুন</button>
+      <button id="btnTest" class="ghost" disabled>এই পেজ OCR করে দেখুন</button>
+    </div>
+    <div class="preview" id="pvbox" hidden>
+      <figure><figcaption>আসল পেজ</figcaption><canvas id="cvA"></canvas></figure>
+      <figure><figcaption>পরিষ্কার করা পেজ (OCR এটাই পড়বে)</figcaption><canvas id="cvB"></canvas></figure>
+    </div>
+    <textarea id="testOut" placeholder="টেস্ট OCR-এর ফল এখানে আসবে" hidden></textarea>
+
+    <details style="margin-top:14px" open>
+      <summary>পেজ পরিষ্কার করার সেটিং</summary>
+      <div class="grid2">
+        <div class="field"><label>লেখা গাঢ় করার মাত্রা: <b id="kv">12</b></label>
+          <input type="range" id="k" min="2" max="40" value="12">
+          <span class="muted">বাড়ালে ঝাপসা লেখা বেশি ধরা পড়ে, কমালে দাগ কম আসে</span></div>
+        <div class="field"><label>সাদা সীমা: <b id="cutv">200</b></label>
+          <input type="range" id="cut" min="80" max="250" value="200">
+          <span class="muted">এর চেয়ে হালকা সবকিছু সাদা হয়ে যায়। ওয়াটারমার্ক থাকলে কমান</span></div>
+        <div class="field"><label>কিনারা সাদা করুন (%): <b id="edgev">1.5</b></label>
+          <input type="range" id="edge" min="0" max="8" step="0.5" value="1.5">
+          <span class="muted">স্ক্যানারের কালো কিনারা মুছতে</span></div>
+        <div class="field"><label>বাইনারি পদ্ধতি</label>
+          <select id="mode">
+            <option value="adaptive" selected>অ্যাডাপটিভ (অসম আলোর জন্য ভালো)</option>
+            <option value="global">গ্লোবাল (Otsu)</option>
+            <option value="none">শুধু ধূসর (কোনো বাইনারি নয়)</option>
+          </select></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <label class="chk"><input type="checkbox" id="rmColor" checked> রঙিন হাইলাইট ও দাগ মুছুন</label>
+        <label class="chk"><input type="checkbox" id="levels" checked> অটো কনট্রাস্ট</label>
+        <label class="chk"><input type="checkbox" id="despeckle" checked> ছোট ফোঁটা মুছুন</label>
+      </div>
+    </details>
+
+    <details style="margin-top:12px">
+      <summary>OCR ইঞ্জিনের সেটিং</summary>
+      <div class="grid2">
+        <div class="field"><label>তথ্যের উৎস</label>
+          <select id="src">
+            <option value="ocr" selected>OCR (স্ক্যান করা PDF-এর জন্য)</option>
+            <option value="layer">PDF-এর নিজস্ব টেক্সট লেয়ার (যদি থাকে)</option>
+          </select></div>
+        <div class="field"><label>ভাষা</label>
+          <select id="lang">
+            <option value="ben" selected>বাংলা</option>
+            <option value="ben+eng">বাংলা + ইংরেজি</option>
+            <option value="eng">ইংরেজি</option>
+          </select></div>
+        <div class="field"><label>ভাষা-ডেটার মান</label>
+          <select id="quality">
+            <option value="best" selected>সেরা (ধীর, বেশি নির্ভুল)</option>
+            <option value="std">স্ট্যান্ডার্ড (ডিফল্ট সার্ভার)</option>
+            <option value="fast">দ্রুত (কম নির্ভুল)</option>
+          </select></div>
+        <div class="field"><label>রেন্ডার মান (বেশি = ধীর কিন্তু পরিষ্কার)</label>
+          <select id="scale">
+            <option value="2">সাধারণ</option>
+            <option value="3" selected>ভালো</option>
+            <option value="4">সর্বোচ্চ</option>
+          </select></div>
+        <div class="field"><label>একসাথে কতটা পেজ (ওয়ার্কার)</label>
+          <select id="workers"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></div>
+        <div class="field"><label>পেজ লেআউট</label>
+          <select id="psm">
+            <option value="3" selected>অটো</option>
+            <option value="6">একটি ব্লক</option>
+            <option value="4">এক কলাম</option>
+          </select></div>
+      </div>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2><span class="num">৪</span> ভাগগুলো ও ডাউনলোড</h2>
+    <div class="row" style="margin-bottom:12px">
+      <button id="btnZipPdf" disabled>সব PDF ZIP করে নামান</button>
+      <button id="btnAllOcr" disabled>সব ভাগ OCR করুন</button>
+      <button id="btnZipTxt" class="ghost" disabled>সব TXT ZIP করে নামান</button>
+      <button id="btnStop" class="stop" disabled>থামান</button>
+    </div>
+    <div class="bar"><i id="barfill"></i></div>
+    <div id="status">ফাইল বাছুন</div>
+    <div style="overflow-x:auto;margin-top:10px">
+      <table>
+        <thead><tr><th>নাম</th><th>পেজ</th><th>অবস্থা</th><th>কাজ</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="4" class="muted">এখনো কিছু নেই</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<footer>
+  টিপ: OCR সবসময় নিখুঁত হয় না, বিশেষ করে বাংলা যুক্তাক্ষর ও ৪/৮-এর মতো সংখ্যা। কাজে লাগানোর আগে প্রিভিউ করে দেখুন। প্রথমবার বাংলা ভাষা-ডেটা ইন্টারনেট থেকে নামে (কয়েক MB), তাই নেট লাগবে।
+  বড় PDF হলে ব্রাউজারের মেমরি লাগে, তাই ২০০ MB-র বেশি ফাইলে আগে ছোট অংশ ভাগ করে নিন।
+</footer>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+let file = null, pdf = null, total = 0, objUrl = null, srcBuf = null, srcDoc = null;
+let parts = [];            // {start,end,text,status,els}
+let stopFlag = false, busy = false;
+let pool = { key: '', ws: [] };
+
+/* ---------- helpers ---------- */
+const bn = n => String(n).replace(/\d/g, d => '০১২৩৪৫৬৭৮৯'[d]);
+function setStatus(t) { $('#status').textContent = t; }
+function setBar(f) { $('#barfill').style.width = Math.max(0, Math.min(100, f * 100)) + '%'; }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function baseName() {
+  const p = $('#prefix').value.trim();
+  const b = p || (file ? file.name.replace(/\.pdf$/i, '') : 'file');
+  return b.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_');
+}
+function pad(n) { return String(n).padStart(String(Math.max(total, 100)).length, '0'); }
+function partName(s, e, ext) { return baseName() + '_p' + pad(s) + '-' + pad(e) + '.' + ext; }
+function saveBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function fmtTime(s) {
+  s = Math.round(s); const m = Math.floor(s / 60), r = s % 60;
+  return m ? m + ' মি ' + r + ' সে' : r + ' সে';
+}
+
+/* ---------- file loading ---------- */
+const drop = $('#drop');
+drop.addEventListener('click', () => $('#file').click());
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('on'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('on'); }));
+drop.addEventListener('drop', e => { if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+$('#file').addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+async function loadFile(f) {
+  if (!/pdf$/i.test(f.type) && !/\.pdf$/i.test(f.name)) { alert('শুধু PDF ফাইল বাছুন।'); return; }
+  setStatus('PDF খোলা হচ্ছে…');
+  try {
+    if (objUrl) URL.revokeObjectURL(objUrl);
+    if (pdf) { try { await pdf.destroy(); } catch (e) {} }
+    file = f; srcBuf = null; srcDoc = null;
+    objUrl = URL.createObjectURL(f);
+    pdf = await pdfjsLib.getDocument({ url: objUrl }).promise;
+    total = pdf.numPages;
+    $('#fileinfo').textContent = f.name + ' — ' + (f.size / 1048576).toFixed(1) + ' MB, ' + bn(total) + ' পেজ';
+    $('#from').value = 1; $('#to').value = total; $('#to').max = total; $('#from').max = total;
+    $('#pv').max = total; $('#pv').value = 1;
+    ['#btnPrev', '#btnTest'].forEach(s => $(s).disabled = false);
+    buildParts();
+    setStatus('প্রস্তুত। ভাগ তৈরি হয়েছে।');
+  } catch (e) {
+    console.error(e); setStatus('PDF খুলতে সমস্যা: ' + e.message);
+  }
+}
+
+/* ---------- parts ---------- */
+['size', 'from', 'to', 'prefix'].forEach(id => $('#' + id).addEventListener('input', () => { if (pdf) buildParts(); }));
+
+function lsKey(s, e) { return 'ocr:' + file.name + ':' + file.size + ':' + s + '-' + e; }
+function buildParts() {
+  const size = Math.max(1, parseInt($('#size').value) || 25);
+  let from = Math.max(1, parseInt($('#from').value) || 1);
+  let to = Math.min(total, parseInt($('#to').value) || total);
+  if (from > to) from = to;
+  parts = [];
+  for (let s = from; s <= to; s += size) {
+    const e = Math.min(to, s + size - 1);
+    let text = null;
+    try { text = localStorage.getItem(lsKey(s, e)); } catch (x) {}
+    parts.push({ start: s, end: e, text, status: text ? 'ok' : 'idle' });
+  }
+  $('#nameEx').textContent = parts.length ? partName(parts[0].start, parts[0].end, 'pdf') : '—';
+  renderRows();
+  ['#btnZipPdf', '#btnAllOcr'].forEach(s => $(s).disabled = !parts.length);
+  $('#btnZipTxt').disabled = !parts.some(p => p.text);
+}
+function renderRows() {
+  const tb = $('#rows'); tb.innerHTML = '';
+  if (!parts.length) { tb.innerHTML = '<tr><td colspan="4" class="muted">এখনো কিছু নেই</td></tr>'; return; }
+  parts.forEach((p, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + partName(p.start, p.end, 'pdf') + '</td>' +
+      '<td>' + bn(p.start) + '–' + bn(p.end) + ' <span class="muted">(' + bn(p.end - p.start + 1) + ')</span></td>' +
+      '<td><span class="pill" data-st></span></td>' +
+      '<td class="act"></td>';
+    const act = tr.querySelector('.act');
+    const b1 = document.createElement('button'); b1.className = 'ghost'; b1.textContent = 'PDF ↓';
+    b1.onclick = () => downloadPart(i);
+    const b2 = document.createElement('button'); b2.textContent = 'OCR';
+    b2.onclick = () => ocrPartUI(i);
+    const b3 = document.createElement('button'); b3.className = 'ghost'; b3.textContent = 'TXT ↓';
+    b3.onclick = () => downloadTxt(i);
+    act.append(b1, b2, b3);
+    p.els = { st: tr.querySelector('[data-st]'), b2, b3 };
+    tb.appendChild(tr);
+    refreshRow(i);
+  });
+}
+function refreshRow(i, label) {
+  const p = parts[i]; if (!p.els) return;
+  const st = p.els.st;
+  st.className = 'pill';
+  if (p.status === 'ok') { st.classList.add('ok'); st.textContent = label || 'OCR শেষ'; }
+  else if (p.status === 'run') { st.classList.add('run'); st.textContent = label || 'চলছে…'; }
+  else if (p.status === 'err') { st.classList.add('err'); st.textContent = label || 'ত্রুটি'; }
+  else { st.textContent = label || 'অপেক্ষায়'; }
+  p.els.b3.disabled = !p.text;
+  p.els.b2.textContent = p.text ? 'আবার OCR' : 'OCR';
+  $('#btnZipTxt').disabled = !parts.some(x => x.text);
+}
+
+/* ---------- PDF split ---------- */
+async function getSrcDoc() {
+  if (srcDoc) return srcDoc;
+  setStatus('PDF মেমরিতে লোড হচ্ছে (বড় ফাইলে একটু সময় লাগবে)…');
+  srcBuf = await file.arrayBuffer();
+  srcDoc = await PDFLib.PDFDocument.load(srcBuf, { ignoreEncryption: true, updateMetadata: false });
+  return srcDoc;
+}
+async function buildPartPdf(i) {
+  const p = parts[i];
+  const src = await getSrcDoc();
+  const out = await PDFLib.PDFDocument.create();
+  const idx = []; for (let n = p.start - 1; n < p.end; n++) idx.push(n);
+  const pages = await out.copyPages(src, idx);
+  pages.forEach(pg => out.addPage(pg));
+  return await out.save({ useObjectStreams: true });
+}
+async function downloadPart(i) {
+  if (busy) return;
+  try {
+    refreshRow(i, 'PDF তৈরি হচ্ছে…');
+    const bytes = await buildPartPdf(i);
+    saveBlob(new Blob([bytes], { type: 'application/pdf' }), partName(parts[i].start, parts[i].end, 'pdf'));
+    setStatus('নামানো হয়েছে: ' + partName(parts[i].start, parts[i].end, 'pdf'));
+  } catch (e) { console.error(e); setStatus('PDF তৈরিতে সমস্যা: ' + e.message); }
+  refreshRow(i);
+}
+$('#btnZipPdf').onclick = async () => {
+  if (busy) return; busy = true; stopFlag = false; setBtns(true);
+  try {
+    const zip = new JSZip();
+    for (let i = 0; i < parts.length; i++) {
+      if (stopFlag) break;
+      setStatus('PDF তৈরি হচ্ছে ' + bn(i + 1) + '/' + bn(parts.length) + '…'); setBar((i) / parts.length);
+      zip.file(partName(parts[i].start, parts[i].end, 'pdf'), await buildPartPdf(i));
+      await sleep(0);
+    }
+    if (!stopFlag) {
+      setStatus('ZIP বানানো হচ্ছে…');
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+      saveBlob(blob, baseName() + '_pdf_parts.zip'); setStatus('ZIP নামানো হয়েছে।'); setBar(1);
+    } else setStatus('থামানো হয়েছে।');
+  } catch (e) { console.error(e); setStatus('সমস্যা: ' + e.message); }
+  busy = false; setBtns(false);
+};
+
+/* ---------- page render + cleanup ---------- */
+function S() {
+  return {
+    src: $('#src').value, lang: $('#lang').value, q: $('#quality').value, scale: +$('#scale').value,
+    workers: +$('#workers').value, psm: $('#psm').value, rmColor: $('#rmColor').checked,
+    levels: $('#levels').checked, edge: +$('#edge').value / 100, despeckle: $('#despeckle').checked,
+    mode: $('#mode').value, k: +$('#k').value / 100, cut: +$('#cut').value
+  };
+}
+['k', 'cut', 'edge'].forEach(id => $('#' + id).addEventListener('input', () => { $('#' + id + 'v').textContent = $('#' + id).value; }));
+
+async function renderPage(n, scale) {
+  const page = await pdf.getPage(n);
+  let vp = page.getViewport({ scale });
+  const m = Math.max(vp.width, vp.height);
+  if (m > 4200) vp = page.getViewport({ scale: scale * 4200 / m });
+  const c = document.createElement('canvas');
+  c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  page.cleanup();
+  return c;
+}
+
+function preprocess(c, o) {
+  const w = c.width, h = c.height, n = w * h;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  const img = ctx.getImageData(0, 0, w, h), d = img.data;
+  let g = new Uint8Array(n);
+  for (let i = 0, p = 0; i < n; i++, p += 4) {
+    const r = d[p], gg = d[p + 1], b = d[p + 2];
+    g[i] = o.rmColor ? Math.max(r, gg, b) : ((0.299 * r + 0.587 * gg + 0.114 * b) | 0);
+  }
+  if (o.levels) {
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < n; i++) hist[g[i]]++;
+    let acc = 0, lo = 0, hi = 255;
+    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= n * 0.005) { lo = v; break; } }
+    acc = 0;
+    for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc >= n * 0.25) { hi = v; break; } }
+    if (hi - lo > 20) {
+      const lut = new Uint8Array(256);
+      for (let v = 0; v < 256; v++) lut[v] = Math.max(0, Math.min(255, Math.round((v - lo) * 255 / (hi - lo))));
+      for (let i = 0; i < n; i++) g[i] = lut[g[i]];
+    }
+  }
+  let bw = g;
+  if (o.mode === 'global') {
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < n; i++) hist[g[i]]++;
+    let sum = 0; for (let v = 0; v < 256; v++) sum += v * hist[v];
+    let sB = 0, wB = 0, best = 0, T = 128;
+    for (let v = 0; v < 256; v++) {
+      wB += hist[v]; if (!wB) continue; const wF = n - wB; if (!wF) break;
+      sB += v * hist[v]; const mB = sB / wB, mF = (sum - sB) / wF;
+      const bt = wB * wF * (mB - mF) * (mB - mF);
+      if (bt > best) { best = bt; T = v; }
+    }
+    bw = new Uint8Array(n);
+    for (let i = 0; i < n; i++) bw[i] = (g[i] <= T && g[i] < o.cut) ? 0 : 255;
+  } else if (o.mode === 'adaptive') {
+    const W = w + 1, ii = new Uint32Array(W * (h + 1));
+    for (let y = 0; y < h; y++) {
+      let row = 0;
+      for (let x = 0; x < w; x++) { row += g[y * w + x]; ii[(y + 1) * W + x + 1] = ii[y * W + x + 1] + row; }
+    }
+    const r = Math.max(8, Math.round(Math.min(w, h) / 40));
+    bw = new Uint8Array(n);
+    for (let y = 0; y < h; y++) {
+      const y0 = Math.max(0, y - r), y1 = Math.min(h - 1, y + r);
+      for (let x = 0; x < w; x++) {
+        const x0 = Math.max(0, x - r), x1 = Math.min(w - 1, x + r);
+        const sum = ii[(y1 + 1) * W + x1 + 1] - ii[y0 * W + x1 + 1] - ii[(y1 + 1) * W + x0] + ii[y0 * W + x0];
+        const mean = sum / ((x1 - x0 + 1) * (y1 - y0 + 1));
+        const v = g[y * w + x];
+        bw[y * w + x] = (v < mean * (1 - o.k) && v < o.cut) ? 0 : 255;
+      }
+    }
+  }
+  if (o.mode !== 'none') {
+    if (o.edge > 0) {
+      const ex = Math.round(w * o.edge), ey = Math.round(h * o.edge);
+      for (let y = 0; y < h; y++) {
+        const yy = (y < ey || y >= h - ey);
+        for (let x = 0; x < w; x++) if (yy || x < ex || x >= w - ex) bw[y * w + x] = 255;
+      }
+    }
+    if (o.despeckle) {
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+        const i = y * w + x;
+        if (bw[i] === 0 &&
+            bw[i - 1] && bw[i + 1] && bw[i - w] && bw[i + w] &&
+            bw[i - w - 1] && bw[i - w + 1] && bw[i + w - 1] && bw[i + w + 1]) bw[i] = 255;
+      }
+    }
+  }
+  for (let i = 0, p = 0; i < n; i++, p += 4) { const v = bw[i]; d[p] = d[p + 1] = d[p + 2] = v; d[p + 3] = 255; }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+
+/* ---------- OCR engine ---------- */
+async function getWorkers(s) {
+  const key = [s.lang, s.q, s.psm, s.workers].join('|');
+  if (pool.key === key && pool.ws.length) return pool.ws;
+  await killWorkers();
+  let langPath;
+  if (s.q === 'best') langPath = 'https://cdn.jsdelivr.net/gh/naptha/tessdata@gh-pages/4.0.0_best';
+  else if (s.q === 'fast') langPath = 'https://cdn.jsdelivr.net/gh/naptha/tessdata@gh-pages/4.0.0_fast';
+  const ws = [];
+  for (let i = 0; i < s.workers; i++) {
+    setStatus('OCR ইঞ্জিন ও ভাষা-ডেটা লোড হচ্ছে (' + bn(i + 1) + '/' + bn(s.workers) + ')… প্রথমবার সময় লাগে');
+    const opts = { logger: m => { if (m.status && /loading|initializ/i.test(m.status)) setStatus('লোড হচ্ছে: ' + m.status + ' ' + Math.round((m.progress || 0) * 100) + '%'); } };
+    if (langPath) opts.langPath = langPath;
+    const w = await Tesseract.createWorker(s.lang, 1, opts);
+    await w.setParameters({ tessedit_pageseg_mode: s.psm, preserve_interword_spaces: '1', user_defined_dpi: '300' });
+    ws.push(w);
+  }
+  pool = { key, ws };
+  return ws;
+}
+async function killWorkers() {
+  for (const w of pool.ws) { try { await w.terminate(); } catch (e) {} }
+  pool = { key: '', ws: [] };
+}
+function cleanText(t) { return (t || '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim(); }
+
+async function layerText(n) {
+  const page = await pdf.getPage(n);
+  const tc = await page.getTextContent();
+  let out = '', lastY = null;
+  for (const it of tc.items) {
+    const y = it.transform[5];
+    if (lastY !== null && Math.abs(y - lastY) > 4) out += '\n'; else if (out && !out.endsWith(' ')) out += ' ';
+    out += it.str; lastY = y;
+  }
+  page.cleanup();
+  return out;
+}
+
+async function ocrRange(start, end, onProg) {
+  const s = S();
+  const results = {};
+  const count = end - start + 1;
+  let done = 0, next = start;
+  if (s.src === 'layer') {
+    for (let p = start; p <= end && !stopFlag; p++) { results[p] = cleanText(await layerText(p)); onProg(++done, count); }
+  } else {
+    const ws = await getWorkers(s);
+    const loop = async w => {
+      while (!stopFlag) {
+        const p = next++; if (p > end) break;
+        try {
+          const c = await renderPage(p, s.scale);
+          preprocess(c, s);
+          const r = await w.recognize(c);
+          results[p] = cleanText(r.data.text);
+          c.width = c.height = 0;
+        } catch (e) { console.error(e); results[p] = '[ত্রুটি: ' + e.message + ']'; }
+        onProg(++done, count);
+      }
+    };
+    await Promise.all(ws.map(loop));
+  }
+  return { results, complete: done === count };
+}
+function buildText(start, end, results) {
+  let t = '';
+  for (let p = start; p <= end; p++) t += '=== PDF পৃষ্ঠা ' + p + ' ===\n' + (results[p] || '') + '\n\n';
+  return t;
+}
+
+async function ocrPart(i, globalInfo) {
+  const p = parts[i];
+  p.status = 'run'; refreshRow(i, 'চলছে…');
+  const t0 = Date.now();
+  const { results, complete } = await ocrRange(p.start, p.end, (d, c) => {
+    const el = (Date.now() - t0) / 1000, eta = d ? el / d * (c - d) : 0;
+    refreshRow(i, bn(d) + '/' + bn(c));
+    const base = globalInfo ? globalInfo.done / globalInfo.total : 0, span = globalInfo ? 1 / globalInfo.total : 1;
+    setBar(base + span * d / c);
+    setStatus('OCR চলছে: পৃ. ' + bn(p.start) + '–' + bn(p.end) + ' (' + bn(d) + '/' + bn(c) + ') — বাকি আনুমানিক ' + fmtTime(eta));
+  });
+  if (!complete) { p.status = 'idle'; refreshRow(i, 'থামানো'); return false; }
+  p.text = buildText(p.start, p.end, results);
+  p.status = 'ok';
+  try { localStorage.setItem(lsKey(p.start, p.end), p.text); } catch (e) {}
+  refreshRow(i);
+  return true;
+}
+async function ocrPartUI(i) {
+  if (busy) return; busy = true; stopFlag = false; setBtns(true);
+  try { const ok = await ocrPart(i); setStatus(ok ? 'OCR শেষ। TXT নামাতে পারেন।' : 'থামানো হয়েছে।'); if (ok) setBar(1); }
+  catch (e) { console.error(e); parts[i].status = 'err'; refreshRow(i); setStatus('সমস্যা: ' + e.message + ' — ভাষা-ডেটার মান "স্ট্যান্ডার্ড" করে দেখুন।'); }
+  busy = false; setBtns(false);
+}
+$('#btnAllOcr').onclick = async () => {
+  if (busy) return; busy = true; stopFlag = false; setBtns(true);
+  try {
+    let done = 0;
+    for (let i = 0; i < parts.length && !stopFlag; i++) {
+      if (parts[i].text && !confirmRedo) { done++; continue; }
+      const ok = await ocrPart(i, { done, total: parts.length });
+      if (!ok) break; done++;
+    }
+    setStatus(stopFlag ? 'থামানো হয়েছে। এ পর্যন্ত শেষ হওয়াগুলো সংরক্ষিত আছে।' : 'সব ভাগের OCR শেষ।'); if (!stopFlag) setBar(1);
+  } catch (e) { console.error(e); setStatus('সমস্যা: ' + e.message + ' — ভাষা-ডেটার মান "স্ট্যান্ডার্ড" করে দেখুন।'); }
+  busy = false; setBtns(false);
+};
+const confirmRedo = false; // আগে শেষ হওয়া ভাগ বাদ দিয়ে চলে (আবার করতে সারির "আবার OCR" চাপুন)
+
+function downloadTxt(i) {
+  const p = parts[i]; if (!p.text) return;
+  saveBlob(new Blob(['﻿' + p.text], { type: 'text/plain;charset=utf-8' }), partName(p.start, p.end, 'txt'));
+}
+$('#btnZipTxt').onclick = async () => {
+  const zip = new JSZip(); let c = 0;
+  parts.forEach(p => { if (p.text) { zip.file(partName(p.start, p.end, 'txt'), '﻿' + p.text); c++; } });
+  if (!c) return;
+  saveBlob(await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' }), baseName() + '_text_parts.zip');
+  setStatus(bn(c) + 'টি TXT ZIP করে নামানো হয়েছে।');
+};
+
+/* ---------- preview / test ---------- */
+async function pvRender() {
+  const n = Math.max(1, Math.min(total, parseInt($('#pv').value) || 1));
+  const s = S();
+  setStatus('পেজ ' + bn(n) + ' রেন্ডার হচ্ছে…');
+  const a = await renderPage(n, Math.min(s.scale, 3));
+  const b = document.createElement('canvas'); b.width = a.width; b.height = a.height;
+  b.getContext('2d', { willReadFrequently: true }).drawImage(a, 0, 0);
+  preprocess(b, s);
+  for (const [id, src] of [['#cvA', a], ['#cvB', b]]) {
+    const cv = $(id); cv.width = src.width; cv.height = src.height; cv.getContext('2d').drawImage(src, 0, 0);
+  }
+  $('#pvbox').hidden = false;
+  setStatus('প্রিভিউ তৈরি। ডানের ছবিতে লেখা পরিষ্কার না এলে সেটিং বদলে আবার চাপুন।');
+  return b;
+}
+$('#btnPrev').onclick = async () => { if (busy) return; busy = true; try { await pvRender(); } catch (e) { setStatus('সমস্যা: ' + e.message); } busy = false; };
+$('#btnTest').onclick = async () => {
+  if (busy) return; busy = true; setBtns(true);
+  try {
+    const b = await pvRender();
+    const s = S();
+    if (s.src === 'layer') { $('#testOut').value = await layerText(parseInt($('#pv').value) || 1); }
+    else {
+      const ws = await getWorkers(s);
+      setStatus('OCR চলছে…');
+      const r = await ws[0].recognize(b);
+      $('#testOut').value = cleanText(r.data.text);
+    }
+    $('#testOut').hidden = false; setStatus('টেস্ট OCR শেষ। নিচের লেখা মূল পেজের সাথে মিলিয়ে দেখুন।');
+  } catch (e) { console.error(e); setStatus('সমস্যা: ' + e.message + ' — ভাষা-ডেটার মান "স্ট্যান্ডার্ড" করে দেখুন।'); }
+  busy = false; setBtns(false);
+};
+
+/* ---------- controls ---------- */
+function setBtns(on) {
+  $('#btnStop').disabled = !on;
+  ['#btnZipPdf', '#btnAllOcr', '#btnPrev', '#btnTest'].forEach(s => { if (pdf) $(s).disabled = on; });
+  document.querySelectorAll('#rows button').forEach(b => b.disabled = on || (b.textContent === 'TXT ↓' && false));
+  if (!on) parts.forEach((p, i) => refreshRow(i));
+}
+$('#btnStop').onclick = () => { stopFlag = true; setStatus('থামানো হচ্ছে (চলমান পেজ শেষ হলে)…'); };
+window.addEventListener('beforeunload', e => { if (busy) { e.preventDefault(); e.returnValue = ''; } });
+</script>
+</body>
+</html>
