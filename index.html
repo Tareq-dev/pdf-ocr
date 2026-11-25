@@ -178,6 +178,7 @@ footer{max-width:980px;margin:0 auto 40px;padding:0 16px;color:var(--muted);font
       <button id="btnAllOcr" disabled>সব ভাগ OCR করুন</button>
       <button id="btnZipTxt" class="ghost" disabled>সব TXT ZIP করে নামান</button>
       <button id="btnStop" class="stop" disabled>থামান</button>
+      <button id="btnClearSaved" class="ghost" disabled title="এই PDF-এর সংরক্ষিত সব OCR মুছে ফেলে">সংরক্ষিত OCR মুছুন</button>
     </div>
     <div class="bar"><i id="barfill"></i></div>
     <div id="status">ফাইল বাছুন</div>
@@ -228,6 +229,12 @@ function fmtTime(s) {
   return m ? m + ' মি ' + r + ' সে' : r + ' সে';
 }
 
+/* ---------- সংরক্ষণ চালু ---------- */
+const storeReady = Store.open().then(ok => {
+  if (!ok) setStatus('সতর্কতা: এই ব্রাউজারে স্থায়ী সংরক্ষণ চালু হয়নি (প্রাইভেট/ইনকগনিটো মোড হতে পারে)। ট্যাব বন্ধ করলে OCR হারাবে — নিয়মিত TXT নামিয়ে রাখুন।');
+});
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+
 /* ---------- file loading ---------- */
 const drop = $('#drop');
 drop.addEventListener('click', () => $('#file').click());
@@ -250,8 +257,13 @@ async function loadFile(f) {
     $('#from').value = 1; $('#to').value = total; $('#to').max = total; $('#from').max = total;
     $('#pv').max = total; $('#pv').value = 1;
     ['#btnPrev', '#btnTest'].forEach(s => $(s).disabled = false);
+    await storeReady;
+    await loadSaved();
     buildParts();
-    setStatus('প্রস্তুত। ভাগ তৈরি হয়েছে।');
+    const nSaved = Object.keys(saved).length;
+    setStatus(nSaved ? ('প্রস্তুত। আগের ' + bn(nSaved) + 'টি পেজের OCR সংরক্ষিত পাওয়া গেছে — "সব OCR" চাপলে বাকি পেজ থেকেই শুরু হবে।')
+                     : 'প্রস্তুত। ভাগ তৈরি হয়েছে।');
+    $('#btnClearSaved').disabled = !nSaved;
   } catch (e) {
     console.error(e); setStatus('PDF খুলতে সমস্যা: ' + e.message);
   }
@@ -260,7 +272,51 @@ async function loadFile(f) {
 /* ---------- parts ---------- */
 ['size', 'from', 'to', 'prefix'].forEach(id => $('#' + id).addEventListener('input', () => { if (pdf) buildParts(); }));
 
-function lsKey(s, e) { return 'ocr:' + file.name + ':' + file.size + ':' + s + '-' + e; }
+/* ---------- স্থায়ী সংরক্ষণ (IndexedDB): প্রতি পেজ OCR হলেই সংরক্ষিত ---------- */
+const Store = {
+  db: null, ok: false, mem: {},
+  open() {
+    return new Promise(res => {
+      try {
+        const r = indexedDB.open('ocr-store', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('pages');
+        r.onsuccess = () => { Store.db = r.result; Store.ok = true; res(true); };
+        r.onerror = () => res(false); r.onblocked = () => res(false);
+      } catch (e) { res(false); }
+    });
+  },
+  tx(mode) { return Store.db.transaction('pages', mode).objectStore('pages'); },
+  put(k, v) {
+    if (!Store.ok) { Store.mem[k] = v; return Promise.resolve(); }
+    return new Promise(res => { try { const r = Store.tx('readwrite').put(v, k); r.onsuccess = () => res(); r.onerror = () => { Store.mem[k] = v; res(); }; } catch (e) { Store.mem[k] = v; res(); } });
+  },
+  loadAll(prefix) {
+    const out = {};
+    if (!Store.ok) { for (const k in Store.mem) if (k.startsWith(prefix)) out[k.slice(prefix.length)] = Store.mem[k]; return Promise.resolve(out); }
+    return new Promise(res => {
+      try {
+        const rg = IDBKeyRange.bound(prefix, prefix + '\uffff');
+        const r = Store.tx('readonly').openCursor(rg);
+        r.onsuccess = () => { const c = r.result; if (c) { out[c.key.slice(prefix.length)] = c.value; c.continue(); } else res(out); };
+        r.onerror = () => res(out);
+      } catch (e) { res(out); }
+    });
+  },
+  del(prefix) {
+    for (const k in Store.mem) if (k.startsWith(prefix)) delete Store.mem[k];
+    if (!Store.ok) return Promise.resolve();
+    return new Promise(res => { try { const r = Store.tx('readwrite').delete(IDBKeyRange.bound(prefix, prefix + '\uffff')); r.onsuccess = () => res(); r.onerror = () => res(); } catch (e) { res(); } });
+  }
+};
+let saved = {};               // {পেজ নং: OCR টেক্সট} — বর্তমান ফাইলের সংরক্ষিত পেজ
+const fkey = () => file.name + '|' + file.size + '|';
+const pageKey = n => fkey() + String(n).padStart(5, '0');
+async function loadSaved() {
+  const all = await Store.loadAll(fkey()); saved = {};
+  for (const k in all) saved[parseInt(k, 10)] = all[k];
+}
+function savedCount(s, e) { let c = 0; for (let n = s; n <= e; n++) if (saved[n] !== undefined) c++; return c; }
+function textFromSaved(s, e) { const r = {}; for (let n = s; n <= e; n++) r[n] = saved[n]; return buildText(s, e, r); }
 function buildParts() {
   const size = Math.max(1, parseInt($('#size').value) || 25);
   let from = Math.max(1, parseInt($('#from').value) || 1);
@@ -269,9 +325,8 @@ function buildParts() {
   parts = [];
   for (let s = from; s <= to; s += size) {
     const e = Math.min(to, s + size - 1);
-    let text = null;
-    try { text = localStorage.getItem(lsKey(s, e)); } catch (x) {}
-    parts.push({ start: s, end: e, text, status: text ? 'ok' : 'idle' });
+    const have = savedCount(s, e), full = have === e - s + 1;
+    parts.push({ start: s, end: e, text: full ? textFromSaved(s, e) : null, status: full ? 'ok' : 'idle', have });
   }
   $('#nameEx').textContent = parts.length ? partName(parts[0].start, parts[0].end, 'pdf') : '—';
   renderRows();
@@ -308,7 +363,11 @@ function refreshRow(i, label) {
   if (p.status === 'ok') { st.classList.add('ok'); st.textContent = label || 'OCR শেষ'; }
   else if (p.status === 'run') { st.classList.add('run'); st.textContent = label || 'চলছে…'; }
   else if (p.status === 'err') { st.classList.add('err'); st.textContent = label || 'ত্রুটি'; }
-  else { st.textContent = label || 'অপেক্ষায়'; }
+  else {
+    const have = savedCount(p.start, p.end);
+    if (have > 0) { st.classList.add('run'); st.textContent = label || ('আংশিক সংরক্ষিত ' + bn(have) + '/' + bn(p.end - p.start + 1)); }
+    else st.textContent = label || 'অপেক্ষায়';
+  }
   p.els.b3.disabled = !p.text;
   p.els.b2.textContent = p.text ? 'আবার OCR' : 'OCR';
   $('#btnZipTxt').disabled = !parts.some(x => x.text);
@@ -506,19 +565,25 @@ async function ocrRange(start, end, onProg) {
   const results = {};
   const count = end - start + 1;
   let done = 0, next = start;
+  for (let p = start; p <= end; p++) if (saved[p] !== undefined) { results[p] = saved[p]; done++; }
+  if (done) onProg(done, count);
+  const todo = []; for (let p = start; p <= end; p++) if (saved[p] === undefined) todo.push(p);
+  let ti = 0;
+  const keep = async (p, t) => { saved[p] = t; await Store.put(pageKey(p), t); $('#btnClearSaved').disabled = false; };
   if (s.src === 'layer') {
-    for (let p = start; p <= end && !stopFlag; p++) { results[p] = cleanText(await layerText(p)); onProg(++done, count); }
+    for (const p of todo) { if (stopFlag) break; const t = cleanText(await layerText(p)); results[p] = t; await keep(p, t); onProg(++done, count); }
   } else {
     const ws = await getWorkers(s);
     const loop = async w => {
       while (!stopFlag) {
-        const p = next++; if (p > end) break;
+        const p = todo[ti++]; if (p === undefined) break;
         try {
           const c = await renderPage(p, s.scale);
           preprocess(c, s);
           const r = await w.recognize(c);
           results[p] = cleanText(r.data.text);
           c.width = c.height = 0;
+          await keep(p, results[p]);
         } catch (e) { console.error(e); results[p] = '[ত্রুটি: ' + e.message + ']'; }
         onProg(++done, count);
       }
@@ -544,16 +609,19 @@ async function ocrPart(i, globalInfo) {
     setBar(base + span * d / c);
     setStatus('OCR চলছে: পৃ. ' + bn(p.start) + '–' + bn(p.end) + ' (' + bn(d) + '/' + bn(c) + ') — বাকি আনুমানিক ' + fmtTime(eta));
   });
-  if (!complete) { p.status = 'idle'; refreshRow(i, 'থামানো'); return false; }
+  if (!complete) { p.status = 'idle'; refreshRow(i); return false; }
   p.text = buildText(p.start, p.end, results);
   p.status = 'ok';
-  try { localStorage.setItem(lsKey(p.start, p.end), p.text); } catch (e) {}
   refreshRow(i);
   return true;
 }
 async function ocrPartUI(i) {
   if (busy) return; busy = true; stopFlag = false; setBtns(true);
-  try { const ok = await ocrPart(i); setStatus(ok ? 'OCR শেষ। TXT নামাতে পারেন।' : 'থামানো হয়েছে।'); if (ok) setBar(1); }
+  try {
+    if (parts[i].text) {  // "আবার OCR": এই ভাগের সংরক্ষিত পেজ মুছে নতুন করে
+      for (let n = parts[i].start; n <= parts[i].end; n++) { delete saved[n]; await Store.del(pageKey(n)); }
+      parts[i].text = null;
+    } const ok = await ocrPart(i); setStatus(ok ? 'OCR শেষ। TXT নামাতে পারেন।' : 'থামানো হয়েছে।'); if (ok) setBar(1); }
   catch (e) { console.error(e); parts[i].status = 'err'; refreshRow(i); setStatus('সমস্যা: ' + e.message + ' — ভাষা-ডেটার মান "স্ট্যান্ডার্ড" করে দেখুন।'); }
   busy = false; setBtns(false);
 }
@@ -625,6 +693,12 @@ function setBtns(on) {
   document.querySelectorAll('#rows button').forEach(b => b.disabled = on || (b.textContent === 'TXT ↓' && false));
   if (!on) parts.forEach((p, i) => refreshRow(i));
 }
+$('#btnClearSaved').onclick = async () => {
+  if (busy || !file) return;
+  if (!confirm('এই PDF-এর সংরক্ষিত সব OCR মুছে যাবে। নিশ্চিত?')) return;
+  await Store.del(fkey()); saved = {}; buildParts(); $('#btnClearSaved').disabled = true;
+  setStatus('সংরক্ষিত OCR মুছে ফেলা হয়েছে।');
+};
 $('#btnStop').onclick = () => { stopFlag = true; setStatus('থামানো হচ্ছে (চলমান পেজ শেষ হলে)…'); };
 window.addEventListener('beforeunload', e => { if (busy) { e.preventDefault(); e.returnValue = ''; } });
 </script>
