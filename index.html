@@ -16,6 +16,7 @@
   --brand:#3b5bdb; --brand-d:#2f49b3; --ok:#12805c; --warn:#b45309; --bad:#c92a2a;
   --radius:14px;
 }
+[hidden]{display:none !important}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans Bengali',system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.6}
 header{background:linear-gradient(135deg,#3b5bdb,#5f3dc4);color:#fff;padding:28px 20px 56px}
@@ -29,6 +30,7 @@ main{max-width:980px;margin:-34px auto 40px;padding:0 16px;display:grid;gap:16px
 .drop:hover,.drop.on{border-color:var(--brand);background:#eef2ff}
 .drop b{color:var(--brand)}
 .muted{color:var(--muted);font-size:.88rem}
+.note{background:#f3f6ff;border:1px solid #d8e0fa;border-radius:10px;padding:10px 12px;font-size:.88rem;margin:0 0 12px}
 .row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
 .field{display:flex;flex-direction:column;gap:4px;min-width:130px;flex:1}
 .field label{font-size:.84rem;color:var(--muted);font-weight:500}
@@ -36,16 +38,21 @@ input[type=number],input[type=text],select{font:inherit;padding:8px 10px;border:
 input:focus,select:focus{outline:2px solid #c5d0ff;border-color:var(--brand)}
 input[type=range]{width:100%}
 button{font:inherit;cursor:pointer;border:0;border-radius:9px;padding:8px 14px;font-weight:600;background:var(--brand);color:#fff;transition:.12s}
-button:hover{background:var(--brand-d)}
+button:hover:not(:disabled){background:var(--brand-d)}
 button.ghost{background:#eef1fb;color:var(--brand)}
-button.ghost:hover{background:#e0e6fa}
+button.ghost:hover:not(:disabled){background:#e0e6fa}
 button.stop{background:var(--bad)}
 button:disabled{opacity:.45;cursor:not-allowed}
 .chk{display:flex;align-items:center;gap:8px;font-size:.92rem}
 .chk input{width:18px;height:18px}
-details{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:#fbfcff}
-details summary{cursor:pointer;font-weight:600}
-.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:12px}
+/* অ্যাকর্ডিয়ন: ডিফল্টে বন্ধ, ক্লিক করলে খুলবে */
+details.acc{border:1px solid var(--line);border-radius:10px;background:#fbfcff;margin-top:12px}
+details.acc>summary{cursor:pointer;font-weight:600;list-style:none;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;user-select:none}
+details.acc>summary::-webkit-details-marker{display:none}
+details.acc>summary::after{content:'▾';color:var(--muted);transition:transform .15s;display:inline-block}
+details.acc[open]>summary::after{transform:rotate(180deg)}
+details.acc>.acc-body{padding:0 14px 14px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:4px}
 .preview{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
 .preview figure{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fafafa}
 .preview figcaption{font-size:.8rem;padding:4px 10px;background:#f0f3fb;color:var(--muted)}
@@ -80,6 +87,7 @@ footer{max-width:980px;margin:0 auto 40px;padding:0 16px;color:var(--muted);font
       <div class="muted" id="fileinfo">এখনো কোনো ফাইল বাছা হয়নি</div>
     </div>
     <input type="file" id="file" accept="application/pdf" hidden>
+    <div class="muted" style="margin-top:8px">বাছা PDF ও OCR-এর ফল এই ব্রাউজারে সেভ থাকে — পেজ রিফ্রেশ করলে বা ট্যাব বদলালেও ফিরে আসবে।</div>
   </section>
 
   <section class="card">
@@ -95,7 +103,7 @@ footer{max-width:980px;margin:0 auto 40px;padding:0 16px;color:var(--muted);font
 
   <section class="card">
     <h2><span class="num">৩</span> OCR সেটিং ও প্রিভিউ</h2>
-    <p class="muted" style="margin-top:0">আগে একটা পেজ প্রিভিউ করে দেখুন লেখা পরিষ্কার আসছে কি না। দাগ, ওয়াটারমার্ক বা ঝাপসা বেশি থাকলে নিচের স্লাইডার নাড়ান।</p>
+    <p class="muted" style="margin-top:0">আগে একটা পেজ প্রিভিউ করে দেখুন লেখা পরিষ্কার আসছে কি না। দাগ, ওয়াটারমার্ক বা ঝাপসা বেশি থাকলে নিচের সেটিং খুলে স্লাইডার নাড়ান।</p>
     <div class="row">
       <div class="field"><label>প্রিভিউয়ের পেজ নম্বর</label><input type="number" id="pv" min="1" value="1"></div>
       <button id="btnPrev" class="ghost" disabled>প্রিভিউ দেখুন</button>
@@ -107,66 +115,70 @@ footer{max-width:980px;margin:0 auto 40px;padding:0 16px;color:var(--muted);font
     </div>
     <textarea id="testOut" placeholder="টেস্ট OCR-এর ফল এখানে আসবে" hidden></textarea>
 
-    <details style="margin-top:14px" open>
+    <details class="acc" name="cfg">
       <summary>পেজ পরিষ্কার করার সেটিং</summary>
-      <div class="grid2">
-        <div class="field"><label>লেখা গাঢ় করার মাত্রা: <b id="kv">12</b></label>
-          <input type="range" id="k" min="2" max="40" value="12">
-          <span class="muted">বাড়ালে ঝাপসা লেখা বেশি ধরা পড়ে, কমালে দাগ কম আসে</span></div>
-        <div class="field"><label>সাদা সীমা: <b id="cutv">200</b></label>
-          <input type="range" id="cut" min="80" max="250" value="200">
-          <span class="muted">এর চেয়ে হালকা সবকিছু সাদা হয়ে যায়। ওয়াটারমার্ক থাকলে কমান</span></div>
-        <div class="field"><label>কিনারা সাদা করুন (%): <b id="edgev">1.5</b></label>
-          <input type="range" id="edge" min="0" max="8" step="0.5" value="1.5">
-          <span class="muted">স্ক্যানারের কালো কিনারা মুছতে</span></div>
-        <div class="field"><label>বাইনারি পদ্ধতি</label>
-          <select id="mode">
-            <option value="adaptive" selected>অ্যাডাপটিভ (অসম আলোর জন্য ভালো)</option>
-            <option value="global">গ্লোবাল (Otsu)</option>
-            <option value="none">শুধু ধূসর (কোনো বাইনারি নয়)</option>
-          </select></div>
-      </div>
-      <div class="row" style="margin-top:12px">
-        <label class="chk"><input type="checkbox" id="rmColor" checked> রঙিন হাইলাইট ও দাগ মুছুন</label>
-        <label class="chk"><input type="checkbox" id="levels" checked> অটো কনট্রাস্ট</label>
-        <label class="chk"><input type="checkbox" id="despeckle" checked> ছোট ফোঁটা মুছুন</label>
+      <div class="acc-body">
+        <div class="grid2">
+          <div class="field"><label>লেখা গাঢ় করার মাত্রা: <b id="kv">12</b></label>
+            <input type="range" id="k" min="2" max="40" value="12">
+            <span class="muted">বাড়ালে ঝাপসা লেখা বেশি ধরা পড়ে, কমালে দাগ কম আসে</span></div>
+          <div class="field"><label>সাদা সীমা: <b id="cutv">200</b></label>
+            <input type="range" id="cut" min="80" max="250" value="200">
+            <span class="muted">এর চেয়ে হালকা সবকিছু সাদা হয়ে যায়। ওয়াটারমার্ক থাকলে কমান</span></div>
+          <div class="field"><label>কিনারা সাদা করুন (%): <b id="edgev">1.5</b></label>
+            <input type="range" id="edge" min="0" max="8" step="0.5" value="1.5">
+            <span class="muted">স্ক্যানারের কালো কিনারা মুছতে</span></div>
+          <div class="field"><label>বাইনারি পদ্ধতি</label>
+            <select id="mode">
+              <option value="adaptive" selected>অ্যাডাপটিভ (অসম আলোর জন্য ভালো)</option>
+              <option value="global">গ্লোবাল (Otsu)</option>
+              <option value="none">শুধু ধূসর (কোনো বাইনারি নয়)</option>
+            </select></div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <label class="chk"><input type="checkbox" id="rmColor" checked> রঙিন হাইলাইট ও দাগ মুছুন</label>
+          <label class="chk"><input type="checkbox" id="levels" checked> অটো কনট্রাস্ট</label>
+          <label class="chk"><input type="checkbox" id="despeckle" checked> ছোট ফোঁটা মুছুন</label>
+        </div>
       </div>
     </details>
 
-    <details style="margin-top:12px">
+    <details class="acc" name="cfg">
       <summary>OCR ইঞ্জিনের সেটিং</summary>
-      <div class="grid2">
-        <div class="field"><label>তথ্যের উৎস</label>
-          <select id="src">
-            <option value="ocr" selected>OCR (স্ক্যান করা PDF-এর জন্য)</option>
-            <option value="layer">PDF-এর নিজস্ব টেক্সট লেয়ার (যদি থাকে)</option>
-          </select></div>
-        <div class="field"><label>ভাষা</label>
-          <select id="lang">
-            <option value="ben" selected>বাংলা</option>
-            <option value="ben+eng">বাংলা + ইংরেজি</option>
-            <option value="eng">ইংরেজি</option>
-          </select></div>
-        <div class="field"><label>ভাষা-ডেটার মান</label>
-          <select id="quality">
-            <option value="best" selected>সেরা (ধীর, বেশি নির্ভুল)</option>
-            <option value="std">স্ট্যান্ডার্ড (ডিফল্ট সার্ভার)</option>
-            <option value="fast">দ্রুত (কম নির্ভুল)</option>
-          </select></div>
-        <div class="field"><label>রেন্ডার মান (বেশি = ধীর কিন্তু পরিষ্কার)</label>
-          <select id="scale">
-            <option value="2">সাধারণ</option>
-            <option value="3" selected>ভালো</option>
-            <option value="4">সর্বোচ্চ</option>
-          </select></div>
-        <div class="field"><label>একসাথে কতটা পেজ (ওয়ার্কার)</label>
-          <select id="workers"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></div>
-        <div class="field"><label>পেজ লেআউট</label>
-          <select id="psm">
-            <option value="3" selected>অটো</option>
-            <option value="6">একটি ব্লক</option>
-            <option value="4">এক কলাম</option>
-          </select></div>
+      <div class="acc-body">
+        <div class="grid2">
+          <div class="field"><label>তথ্যের উৎস</label>
+            <select id="src">
+              <option value="ocr" selected>OCR (স্ক্যান করা PDF-এর জন্য)</option>
+              <option value="layer">PDF-এর নিজস্ব টেক্সট লেয়ার (যদি থাকে)</option>
+            </select></div>
+          <div class="field"><label>ভাষা</label>
+            <select id="lang">
+              <option value="ben" selected>বাংলা</option>
+              <option value="ben+eng">বাংলা + ইংরেজি</option>
+              <option value="eng">ইংরেজি</option>
+            </select></div>
+          <div class="field"><label>ভাষা-ডেটার মান</label>
+            <select id="quality">
+              <option value="best" selected>সেরা (ধীর, বেশি নির্ভুল)</option>
+              <option value="std">স্ট্যান্ডার্ড (ডিফল্ট সার্ভার)</option>
+              <option value="fast">দ্রুত (কম নির্ভুল)</option>
+            </select></div>
+          <div class="field"><label>রেন্ডার মান (বেশি = ধীর কিন্তু পরিষ্কার)</label>
+            <select id="scale">
+              <option value="2">সাধারণ</option>
+              <option value="3" selected>ভালো</option>
+              <option value="4">সর্বোচ্চ</option>
+            </select></div>
+          <div class="field"><label>একসাথে কতটা পেজ (ওয়ার্কার)</label>
+            <select id="workers"><option>1</option><option>2</option><option>3</option></select></div>
+          <div class="field"><label>পেজ লেআউট</label>
+            <select id="psm">
+              <option value="3" selected>অটো</option>
+              <option value="6">একটি ব্লক</option>
+              <option value="4">এক কলাম</option>
+            </select></div>
+        </div>
       </div>
     </details>
   </section>
@@ -178,8 +190,12 @@ footer{max-width:980px;margin:0 auto 40px;padding:0 16px;color:var(--muted);font
       <button id="btnAllOcr" disabled>সব ভাগ OCR করুন</button>
       <button id="btnZipTxt" class="ghost" disabled>সব TXT ZIP করে নামান</button>
       <button id="btnStop" class="stop" disabled>থামান</button>
-      <button id="btnClearSaved" class="ghost" disabled title="এই PDF-এর সংরক্ষিত সব OCR মুছে ফেলে">সংরক্ষিত OCR মুছুন</button>
     </div>
+    <div class="row" style="margin-bottom:12px">
+      <button id="btnClearSaved" class="ghost" disabled title="এই PDF-এর সংরক্ষিত সব OCR মুছে ফেলে, PDF থাকে">সংরক্ষিত OCR মুছুন</button>
+      <button id="btnForget" class="ghost" disabled title="PDF ফাইল ও এর সব OCR ব্রাউজার থেকে মুছে ফেলে">PDF ও সব ডেটা মুছুন</button>
+    </div>
+    <div class="note">ট্যাব বদলালে সাধারণত কাজ চলতে থাকে, কিন্তু স্ক্রিন বন্ধ হলে বা ল্যাপটপ স্লিপে গেলে ব্রাউজার কাজ থামিয়ে দিতে পারে — তাই OCR চলাকালে স্ক্রিন জাগিয়ে রাখার চেষ্টা করা হয়। প্রতিটি পেজ শেষ হলেই সেভ হয়, তাই আবার চালু করলে যেখানে থেমেছিল সেখান থেকেই শুরু হবে।</div>
     <div class="bar"><i id="barfill"></i></div>
     <div id="status">ফাইল বাছুন</div>
     <div style="overflow-x:auto;margin-top:10px">
@@ -192,8 +208,8 @@ footer{max-width:980px;margin:0 auto 40px;padding:0 16px;color:var(--muted);font
 </main>
 
 <footer>
-  টিপ: OCR সবসময় নিখুঁত হয় না, বিশেষ করে বাংলা যুক্তাক্ষর ও ৪/৮-এর মতো সংখ্যা। কাজে লাগানোর আগে প্রিভিউ করে দেখুন। প্রথমবার বাংলা ভাষা-ডেটা ইন্টারনেট থেকে নামে (কয়েক MB), তাই নেট লাগবে।
-  বড় PDF হলে ব্রাউজারের মেমরি লাগে, তাই ২০০ MB-র বেশি ফাইলে আগে ছোট অংশ ভাগ করে নিন।
+  টিপ: OCR সবসময় নিখুঁত হয় না, বিশেষ করে বাংলা যুক্তাক্ষর ও ৪/৮-এর মতো সংখ্যা। কাজে লাগানোর আগে প্রিভিউ করে দেখুন। প্রথমবার বাংলা ভাষা-ডেটা ইন্টারনেট থেকে নামে (কয়েক MB), একবার নামলে ব্রাউজারে ক্যাশ থাকে।
+  বড় PDF হলে ব্রাউজারের মেমরি লাগে, তাই ২০০ MB-র বেশি ফাইলে আগে ছোট অংশ ভাগ করে নিন। ব্রাউজারের স্টোরেজ ভরে গেলে পুরনো ফাইল মুছে নতুন ফাইল বাছুন।
 </footer>
 
 <script>
@@ -201,10 +217,14 @@ footer{max-width:980px;margin:0 auto 40px;padding:0 16px;color:var(--muted);font
 const $ = s => document.querySelector(s);
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-let file = null, pdf = null, total = 0, objUrl = null, srcBuf = null, srcDoc = null;
-let parts = [];            // {start,end,text,status,els}
+let file = null, pdf = null, total = 0, objUrl = null, srcDoc = null;
+let parts = [], saved = {};
 let stopFlag = false, busy = false;
 let pool = { key: '', ws: [] };
+let wakeLock = null;
+const PREF_KEY = 'pdfocr-prefs-v2';
+const PREF_IDS = ['size', 'prefix', 'k', 'cut', 'edge', 'mode', 'rmColor', 'levels', 'despeckle',
+                  'src', 'lang', 'quality', 'scale', 'workers', 'psm'];
 
 /* ---------- helpers ---------- */
 const bn = n => String(n).replace(/\d/g, d => '০১২৩৪৫৬৭৮৯'[d]);
@@ -228,93 +248,183 @@ function fmtTime(s) {
   s = Math.round(s); const m = Math.floor(s / 60), r = s % 60;
   return m ? m + ' মি ' + r + ' সে' : r + ' সে';
 }
+const fkey = () => file.name + '|' + file.size + '|';
+const pageKey = n => fkey() + String(n).padStart(5, '0');
 
-/* ---------- সংরক্ষণ চালু ---------- */
-const storeReady = Store.open().then(ok => {
-  if (!ok) setStatus('সতর্কতা: এই ব্রাউজারে স্থায়ী সংরক্ষণ চালু হয়নি (প্রাইভেট/ইনকগনিটো মোড হতে পারে)। ট্যাব বন্ধ করলে OCR হারাবে — নিয়মিত TXT নামিয়ে রাখুন।');
-});
-try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
-
-/* ---------- file loading ---------- */
-const drop = $('#drop');
-drop.addEventListener('click', () => $('#file').click());
-['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('on'); }));
-['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('on'); }));
-drop.addEventListener('drop', e => { if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
-$('#file').addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
-
-async function loadFile(f) {
-  if (!/pdf$/i.test(f.type) && !/\.pdf$/i.test(f.name)) { alert('শুধু PDF ফাইল বাছুন।'); return; }
-  setStatus('PDF খোলা হচ্ছে…');
-  try {
-    if (objUrl) URL.revokeObjectURL(objUrl);
-    if (pdf) { try { await pdf.destroy(); } catch (e) {} }
-    file = f; srcBuf = null; srcDoc = null;
-    objUrl = URL.createObjectURL(f);
-    pdf = await pdfjsLib.getDocument({ url: objUrl }).promise;
-    total = pdf.numPages;
-    $('#fileinfo').textContent = f.name + ' — ' + (f.size / 1048576).toFixed(1) + ' MB, ' + bn(total) + ' পেজ';
-    $('#from').value = 1; $('#to').value = total; $('#to').max = total; $('#from').max = total;
-    $('#pv').max = total; $('#pv').value = 1;
-    ['#btnPrev', '#btnTest'].forEach(s => $(s).disabled = false);
-    await storeReady;
-    await loadSaved();
-    buildParts();
-    const nSaved = Object.keys(saved).length;
-    setStatus(nSaved ? ('প্রস্তুত। আগের ' + bn(nSaved) + 'টি পেজের OCR সংরক্ষিত পাওয়া গেছে — "সব OCR" চাপলে বাকি পেজ থেকেই শুরু হবে।')
-                     : 'প্রস্তুত। ভাগ তৈরি হয়েছে।');
-    $('#btnClearSaved').disabled = !nSaved;
-  } catch (e) {
-    console.error(e); setStatus('PDF খুলতে সমস্যা: ' + e.message);
-  }
-}
-
-/* ---------- parts ---------- */
-['size', 'from', 'to', 'prefix'].forEach(id => $('#' + id).addEventListener('input', () => { if (pdf) buildParts(); }));
-
-/* ---------- স্থায়ী সংরক্ষণ (IndexedDB): প্রতি পেজ OCR হলেই সংরক্ষিত ---------- */
+/* ---------- স্থায়ী সংরক্ষণ (IndexedDB) ----------
+   'pages' store: প্রতি পেজের OCR টেক্সট
+   'files' store: বাছা PDF ফাইলটি (Blob হিসেবে)  — রিফ্রেশ/ট্যাব বদলালেও ফিরে আসে */
 const Store = {
-  db: null, ok: false, mem: {},
+  db: null, ok: false, mem: {}, memFile: null,
   open() {
     return new Promise(res => {
       try {
-        const r = indexedDB.open('ocr-store', 1);
-        r.onupgradeneeded = () => r.result.createObjectStore('pages');
-        r.onsuccess = () => { Store.db = r.result; Store.ok = true; res(true); };
-        r.onerror = () => res(false); r.onblocked = () => res(false);
+        const r = indexedDB.open('ocr-store', 2);
+        r.onupgradeneeded = () => {
+          const db = r.result;
+          if (!db.objectStoreNames.contains('pages')) db.createObjectStore('pages');
+          if (!db.objectStoreNames.contains('files')) db.createObjectStore('files');
+        };
+        r.onsuccess = () => {
+          Store.db = r.result;
+          Store.db.onversionchange = () => Store.db.close();   // নতুন ভার্সনের জন্য জায়গা ছেড়ে দেয়
+          Store.ok = true; res(true);
+        };
+        r.onerror = () => res(false);
+        r.onblocked = () => setStatus('পুরনো ট্যাব বন্ধ করুন — ডেটাবেস আপডেট হচ্ছে…');
       } catch (e) { res(false); }
     });
   },
-  tx(mode) { return Store.db.transaction('pages', mode).objectStore('pages'); },
+  // একটি transaction চালায়; transaction সম্পূর্ণ হলে (অর্থাৎ ডিস্কে লেখা হলে) resolve
+  run(store, mode, fn) {
+    return new Promise((res, rej) => {
+      const tx = Store.db.transaction(store, mode);
+      let out;
+      const r = fn(tx.objectStore(store));
+      if (r) r.onsuccess = () => { out = r.result; };
+      tx.oncomplete = () => res(out);
+      tx.onerror = tx.onabort = () => rej(tx.error || new Error('ডেটাবেস লেখা যায়নি'));
+    });
+  },
   put(k, v) {
     if (!Store.ok) { Store.mem[k] = v; return Promise.resolve(); }
-    return new Promise(res => { try { const r = Store.tx('readwrite').put(v, k); r.onsuccess = () => res(); r.onerror = () => { Store.mem[k] = v; res(); }; } catch (e) { Store.mem[k] = v; res(); } });
+    return Store.run('pages', 'readwrite', os => os.put(v, k)).catch(() => { Store.mem[k] = v; });
   },
   loadAll(prefix) {
-    const out = {};
-    if (!Store.ok) { for (const k in Store.mem) if (k.startsWith(prefix)) out[k.slice(prefix.length)] = Store.mem[k]; return Promise.resolve(out); }
-    return new Promise(res => {
-      try {
-        const rg = IDBKeyRange.bound(prefix, prefix + '\uffff');
-        const r = Store.tx('readonly').openCursor(rg);
-        r.onsuccess = () => { const c = r.result; if (c) { out[c.key.slice(prefix.length)] = c.value; c.continue(); } else res(out); };
-        r.onerror = () => res(out);
-      } catch (e) { res(out); }
+    if (!Store.ok) {
+      const out = {};
+      for (const k in Store.mem) if (k.startsWith(prefix)) out[k.slice(prefix.length)] = Store.mem[k];
+      return Promise.resolve(out);
+    }
+    return new Promise((res, rej) => {
+      const out = {};
+      const tx = Store.db.transaction('pages', 'readonly');
+      const rg = IDBKeyRange.bound(prefix, prefix + '￿');
+      tx.objectStore('pages').openCursor(rg).onsuccess = e => {
+        const c = e.target.result;
+        if (c) { out[c.key.slice(prefix.length)] = c.value; c.continue(); }
+      };
+      tx.oncomplete = () => res(out);
+      tx.onerror = () => rej(tx.error);
     });
   },
   del(prefix) {
     for (const k in Store.mem) if (k.startsWith(prefix)) delete Store.mem[k];
     if (!Store.ok) return Promise.resolve();
-    return new Promise(res => { try { const r = Store.tx('readwrite').delete(IDBKeyRange.bound(prefix, prefix + '\uffff')); r.onsuccess = () => res(); r.onerror = () => res(); } catch (e) { res(); } });
+    return Store.run('pages', 'readwrite', os => os.delete(IDBKeyRange.bound(prefix, prefix + '￿')));
+  },
+  saveFile(f) {
+    const rec = { name: f.name, size: f.size, type: f.type, lastModified: f.lastModified, blob: f, savedAt: Date.now() };
+    if (!Store.ok) { Store.memFile = rec; return Promise.resolve(); }
+    return Store.run('files', 'readwrite', os => os.put(rec, 'current'));
+  },
+  getFile() {
+    if (!Store.ok) return Promise.resolve(Store.memFile);
+    return Store.run('files', 'readonly', os => os.get('current'));
+  },
+  delFile() {
+    Store.memFile = null;
+    if (!Store.ok) return Promise.resolve();
+    return Store.run('files', 'readwrite', os => os.delete('current'));
   }
 };
-let saved = {};               // {পেজ নং: OCR টেক্সট} — বর্তমান ফাইলের সংরক্ষিত পেজ
-const fkey = () => file.name + '|' + file.size + '|';
-const pageKey = n => fkey() + String(n).padStart(5, '0');
+const storeReady = Store.open().then(ok => {
+  if (!ok) setStatus('সতর্কতা: এই ব্রাউজারে স্থায়ী সংরক্ষণ চালু হয়নি (প্রাইভেট/ইনকগনিটো মোড হতে পারে)। ট্যাব বন্ধ করলে PDF ও OCR হারাবে।');
+  return ok;
+});
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+/* ---------- পছন্দের সেটিং মনে রাখা ---------- */
+function updateLabels() {
+  $('#kv').textContent = $('#k').value;
+  $('#cutv').textContent = $('#cut').value;
+  $('#edgev').textContent = $('#edge').value;
+}
+function savePrefs() {
+  const o = {};
+  PREF_IDS.forEach(id => { const el = document.getElementById(id); if (el) o[id] = el.type === 'checkbox' ? el.checked : el.value; });
+  try { localStorage.setItem(PREF_KEY, JSON.stringify(o)); } catch (e) {}
+}
+function loadPrefs() {
+  try {
+    const o = JSON.parse(localStorage.getItem(PREF_KEY) || '{}');
+    PREF_IDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && id in o) { if (el.type === 'checkbox') el.checked = !!o[id]; else el.value = o[id]; }
+    });
+  } catch (e) {}
+}
+
+/* ---------- ফাইল খোলা ও পুনরুদ্ধার ---------- */
+const drop = $('#drop');
+drop.addEventListener('click', () => $('#file').click());
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('on'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('on'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) openFile(f, true); });
+$('#file').addEventListener('change', e => {
+  const f = e.target.files[0];
+  e.target.value = '';            // একই ফাইল আবার বাছতে পারবেন
+  if (f) openFile(f, true);
+});
+
+async function openFile(f, isNew) {
+  if (busy) { setStatus('আগের কাজ শেষ হওয়ার পর ফাইল বদলান।'); return; }
+  if (!/pdf$/i.test(f.type) && !/\.pdf$/i.test(f.name)) { setStatus('শুধু PDF ফাইল বাছুন।'); return; }
+  setStatus(isNew ? 'PDF খোলা হচ্ছে…' : 'আগের PDF ফিরিয়ে আনা হচ্ছে…');
+  try {
+    if (pdf) { try { await pdf.destroy(); } catch (e) {} }
+    if (objUrl) URL.revokeObjectURL(objUrl);
+    file = f; srcDoc = null;
+    objUrl = URL.createObjectURL(f);
+    pdf = await pdfjsLib.getDocument({ url: objUrl }).promise;
+    total = pdf.numPages;
+    $('#fileinfo').textContent = f.name + ' — ' + (f.size / 1048576).toFixed(1) + ' MB, ' + bn(total) + ' পেজ';
+    $('#from').value = 1; $('#to').value = total; $('#from').max = total; $('#to').max = total;
+    $('#pv').max = total; $('#pv').value = 1;
+
+    const ok = await storeReady;
+    let stored = false;
+    if (isNew && ok) {
+      try { await Store.saveFile(f); stored = true; } catch (e) { console.error(e); }
+    }
+    await loadSaved();
+    buildParts();
+    $('#pvbox').hidden = true; $('#testOut').hidden = true;
+    setBtns(false);
+
+    const nSaved = Object.keys(saved).length;
+    const fileNote = !ok ? 'সতর্কতা: ব্রাউজারে স্থায়ী সংরক্ষণ নেই — ট্যাব বন্ধ করলে ফাইল হারাবে।'
+      : (isNew && !stored) ? 'সতর্কতা: ফাইল সেভ করা যায়নি — ব্রাউজারের জায়গা শেষ হতে পারে।'
+      : 'PDF ব্রাউজারে সেভ আছে।';
+    const left = total - nSaved;
+    setStatus((nSaved ? bn(nSaved) + 'টি পেজের OCR আগে থেকেই আছে। ' : '') + fileNote +
+      (nSaved && left > 0 ? ' "সব ভাগ OCR করুন" চাপলে বাকি পেজ থেকে শুরু হবে।' : ''));
+  } catch (e) {
+    console.error(e);
+    setStatus('PDF খুলতে সমস্যা: ' + e.message + (isNew ? '' : ' — "PDF ও সব ডেটা মুছুন" চাপলে সংরক্ষিত ফাইল মুছে নতুন করে বাছতে পারবেন।'));
+  }
+}
+
+async function restoreSaved() {
+  try {
+    await storeReady;
+    const rec = await Store.getFile();
+    if (!rec || !rec.blob) return;
+    await openFile(new File([rec.blob], rec.name, { type: rec.type || 'application/pdf', lastModified: rec.lastModified }), false);
+  } catch (e) {
+    console.error(e);
+    setStatus('আগের ফাইল পড়া যায়নি: ' + e.message);
+  }
+}
+
 async function loadSaved() {
-  const all = await Store.loadAll(fkey()); saved = {};
+  const all = await Store.loadAll(fkey());
+  saved = {};
   for (const k in all) saved[parseInt(k, 10)] = all[k];
 }
+
+/* ---------- ভাগ তৈরি ---------- */
+['size', 'from', 'to', 'prefix'].forEach(id => $('#' + id).addEventListener('input', () => { if (pdf) buildParts(); }));
 function savedCount(s, e) { let c = 0; for (let n = s; n <= e; n++) if (saved[n] !== undefined) c++; return c; }
 function textFromSaved(s, e) { const r = {}; for (let n = s; n <= e; n++) r[n] = saved[n]; return buildText(s, e, r); }
 function buildParts() {
@@ -330,7 +440,6 @@ function buildParts() {
   }
   $('#nameEx').textContent = parts.length ? partName(parts[0].start, parts[0].end, 'pdf') : '—';
   renderRows();
-  ['#btnZipPdf', '#btnAllOcr'].forEach(s => $(s).disabled = !parts.length);
   $('#btnZipTxt').disabled = !parts.some(p => p.text);
 }
 function renderRows() {
@@ -357,7 +466,7 @@ function renderRows() {
   });
 }
 function refreshRow(i, label) {
-  const p = parts[i]; if (!p.els) return;
+  const p = parts[i]; if (!p || !p.els) return;
   const st = p.els.st;
   st.className = 'pill';
   if (p.status === 'ok') { st.classList.add('ok'); st.textContent = label || 'OCR শেষ'; }
@@ -368,17 +477,16 @@ function refreshRow(i, label) {
     if (have > 0) { st.classList.add('run'); st.textContent = label || ('আংশিক সংরক্ষিত ' + bn(have) + '/' + bn(p.end - p.start + 1)); }
     else st.textContent = label || 'অপেক্ষায়';
   }
-  p.els.b3.disabled = !p.text;
+  p.els.b3.disabled = !p.text || busy;
   p.els.b2.textContent = p.text ? 'আবার OCR' : 'OCR';
-  $('#btnZipTxt').disabled = !parts.some(x => x.text);
 }
 
 /* ---------- PDF split ---------- */
 async function getSrcDoc() {
   if (srcDoc) return srcDoc;
   setStatus('PDF মেমরিতে লোড হচ্ছে (বড় ফাইলে একটু সময় লাগবে)…');
-  srcBuf = await file.arrayBuffer();
-  srcDoc = await PDFLib.PDFDocument.load(srcBuf, { ignoreEncryption: true, updateMetadata: false });
+  const buf = await file.arrayBuffer();
+  srcDoc = await PDFLib.PDFDocument.load(buf, { ignoreEncryption: true, updateMetadata: false });
   return srcDoc;
 }
 async function buildPartPdf(i) {
@@ -406,7 +514,7 @@ $('#btnZipPdf').onclick = async () => {
     const zip = new JSZip();
     for (let i = 0; i < parts.length; i++) {
       if (stopFlag) break;
-      setStatus('PDF তৈরি হচ্ছে ' + bn(i + 1) + '/' + bn(parts.length) + '…'); setBar((i) / parts.length);
+      setStatus('PDF তৈরি হচ্ছে ' + bn(i + 1) + '/' + bn(parts.length) + '…'); setBar(i / parts.length);
       zip.file(partName(parts[i].start, parts[i].end, 'pdf'), await buildPartPdf(i));
       await sleep(0);
     }
@@ -428,7 +536,6 @@ function S() {
     mode: $('#mode').value, k: +$('#k').value / 100, cut: +$('#cut').value
   };
 }
-['k', 'cut', 'edge'].forEach(id => $('#' + id).addEventListener('input', () => { $('#' + id + 'v').textContent = $('#' + id).value; }));
 
 async function renderPage(n, scale) {
   const page = await pdf.getPage(n);
@@ -448,7 +555,7 @@ function preprocess(c, o) {
   const w = c.width, h = c.height, n = w * h;
   const ctx = c.getContext('2d', { willReadFrequently: true });
   const img = ctx.getImageData(0, 0, w, h), d = img.data;
-  let g = new Uint8Array(n);
+  const g = new Uint8Array(n);
   for (let i = 0, p = 0; i < n; i++, p += 4) {
     const r = d[p], gg = d[p + 1], b = d[p + 2];
     g[i] = o.rmColor ? Math.max(r, gg, b) : ((0.299 * r + 0.587 * gg + 0.114 * b) | 0);
@@ -481,7 +588,7 @@ function preprocess(c, o) {
     bw = new Uint8Array(n);
     for (let i = 0; i < n; i++) bw[i] = (g[i] <= T && g[i] < o.cut) ? 0 : 255;
   } else if (o.mode === 'adaptive') {
-    const W = w + 1, ii = new Uint32Array(W * (h + 1));
+    const W = w + 1, ii = new Float64Array(W * (h + 1));   // Float64: বড় পেজেও overflow হবে না
     for (let y = 0; y < h; y++) {
       let row = 0;
       for (let x = 0; x < w; x++) { row += g[y * w + x]; ii[(y + 1) * W + x + 1] = ii[y * W + x + 1] + row; }
@@ -560,37 +667,51 @@ async function layerText(n) {
   return out;
 }
 
+// প্রতিটি পেজ শেষ হলেই সেভ হয়। ব্যর্থ পেজ সেভ হয় না, তাই পরের বার শুধু সেগুলোই আবার হবে।
 async function ocrRange(start, end, onProg) {
   const s = S();
   const results = {};
   const count = end - start + 1;
-  let done = 0, next = start;
-  for (let p = start; p <= end; p++) if (saved[p] !== undefined) { results[p] = saved[p]; done++; }
+  let done = 0, failed = 0, ti = 0;
+  const todo = [];
+  for (let p = start; p <= end; p++) {
+    if (saved[p] !== undefined) { results[p] = saved[p]; done++; }
+    else todo.push(p);
+  }
   if (done) onProg(done, count);
-  const todo = []; for (let p = start; p <= end; p++) if (saved[p] === undefined) todo.push(p);
-  let ti = 0;
-  const keep = async (p, t) => { saved[p] = t; await Store.put(pageKey(p), t); $('#btnClearSaved').disabled = false; };
+  const keep = async (p, t) => { saved[p] = t; await Store.put(pageKey(p), t); };
+
   if (s.src === 'layer') {
-    for (const p of todo) { if (stopFlag) break; const t = cleanText(await layerText(p)); results[p] = t; await keep(p, t); onProg(++done, count); }
+    for (const p of todo) {
+      if (stopFlag) break;
+      const t = cleanText(await layerText(p));
+      results[p] = t; await keep(p, t); onProg(++done, count);
+    }
   } else {
     const ws = await getWorkers(s);
     const loop = async w => {
       while (!stopFlag) {
         const p = todo[ti++]; if (p === undefined) break;
+        let canvas = null;
         try {
-          const c = await renderPage(p, s.scale);
-          preprocess(c, s);
-          const r = await w.recognize(c);
-          results[p] = cleanText(r.data.text);
-          c.width = c.height = 0;
-          await keep(p, results[p]);
-        } catch (e) { console.error(e); results[p] = '[ত্রুটি: ' + e.message + ']'; }
+          canvas = await renderPage(p, s.scale);
+          preprocess(canvas, s);
+          const r = await w.recognize(canvas);
+          const t = cleanText(r.data.text);
+          results[p] = t;
+          await keep(p, t);
+        } catch (e) {
+          console.error(e); failed++;
+          results[p] = '[ত্রুটি: ' + e.message + ']';
+        } finally {
+          if (canvas) { canvas.width = canvas.height = 0; }   // মেমরি ছাড়ুন
+        }
         onProg(++done, count);
       }
     };
     await Promise.all(ws.map(loop));
   }
-  return { results, complete: done === count };
+  return { results, complete: done === count && failed === 0, failed };
 }
 function buildText(start, end, results) {
   let t = '';
@@ -602,14 +723,14 @@ async function ocrPart(i, globalInfo) {
   const p = parts[i];
   p.status = 'run'; refreshRow(i, 'চলছে…');
   const t0 = Date.now();
-  const { results, complete } = await ocrRange(p.start, p.end, (d, c) => {
+  const { results, complete, failed } = await ocrRange(p.start, p.end, (d, c) => {
     const el = (Date.now() - t0) / 1000, eta = d ? el / d * (c - d) : 0;
     refreshRow(i, bn(d) + '/' + bn(c));
     const base = globalInfo ? globalInfo.done / globalInfo.total : 0, span = globalInfo ? 1 / globalInfo.total : 1;
     setBar(base + span * d / c);
     setStatus('OCR চলছে: পৃ. ' + bn(p.start) + '–' + bn(p.end) + ' (' + bn(d) + '/' + bn(c) + ') — বাকি আনুমানিক ' + fmtTime(eta));
   });
-  if (!complete) { p.status = 'idle'; refreshRow(i); return false; }
+  if (!complete) { p.status = failed ? 'err' : 'idle'; refreshRow(i); return false; }
   p.text = buildText(p.start, p.end, results);
   p.status = 'ok';
   refreshRow(i);
@@ -618,27 +739,38 @@ async function ocrPart(i, globalInfo) {
 async function ocrPartUI(i) {
   if (busy) return; busy = true; stopFlag = false; setBtns(true);
   try {
-    if (parts[i].text) {  // "আবার OCR": এই ভাগের সংরক্ষিত পেজ মুছে নতুন করে
+    if (parts[i].text) {   // "আবার OCR": এই ভাগের সংরক্ষিত পেজ মুছে নতুন করে
       for (let n = parts[i].start; n <= parts[i].end; n++) { delete saved[n]; await Store.del(pageKey(n)); }
       parts[i].text = null;
-    } const ok = await ocrPart(i); setStatus(ok ? 'OCR শেষ। TXT নামাতে পারেন।' : 'থামানো হয়েছে।'); if (ok) setBar(1); }
-  catch (e) { console.error(e); parts[i].status = 'err'; refreshRow(i); setStatus('সমস্যা: ' + e.message + ' — ভাষা-ডেটার মান "স্ট্যান্ডার্ড" করে দেখুন।'); }
+    }
+    const ok = await ocrPart(i);
+    setStatus(ok ? 'OCR শেষ। TXT নামাতে পারেন।' : (stopFlag ? 'থামানো হয়েছে।' : 'কিছু পেজে ত্রুটি হয়েছে — আবার OCR চাপুন।'));
+    if (ok) setBar(1);
+  } catch (e) {
+    console.error(e); parts[i].status = 'err'; refreshRow(i);
+    setStatus('সমস্যা: ' + e.message + ' — ভাষা-ডেটার মান "স্ট্যান্ডার্ড" করে দেখুন।');
+  }
   busy = false; setBtns(false);
 }
 $('#btnAllOcr').onclick = async () => {
   if (busy) return; busy = true; stopFlag = false; setBtns(true);
+  let ok = true;
   try {
     let done = 0;
     for (let i = 0; i < parts.length && !stopFlag; i++) {
-      if (parts[i].text && !confirmRedo) { done++; continue; }
-      const ok = await ocrPart(i, { done, total: parts.length });
-      if (!ok) break; done++;
+      if (parts[i].text) { done++; continue; }   // আগে শেষ হওয়া ভাগ বাদ
+      ok = await ocrPart(i, { done, total: parts.length });
+      if (!ok) break;
+      done++;
     }
-    setStatus(stopFlag ? 'থামানো হয়েছে। এ পর্যন্ত শেষ হওয়াগুলো সংরক্ষিত আছে।' : 'সব ভাগের OCR শেষ।'); if (!stopFlag) setBar(1);
-  } catch (e) { console.error(e); setStatus('সমস্যা: ' + e.message + ' — ভাষা-ডেটার মান "স্ট্যান্ডার্ড" করে দেখুন।'); }
+    if (stopFlag) setStatus('থামানো হয়েছে। এ পর্যন্ত শেষ হওয়া পেজগুলো সংরক্ষিত আছে।');
+    else if (!ok) setStatus('কিছু পেজে ত্রুটি — "সব ভাগ OCR করুন" আবার চাপুন, শুধু বাকিগুলো হবে।');
+    else { setStatus('সব ভাগের OCR শেষ।'); setBar(1); }
+  } catch (e) {
+    console.error(e); setStatus('সমস্যা: ' + e.message + ' — ভাষা-ডেটার মান "স্ট্যান্ডার্ড" করে দেখুন।');
+  }
   busy = false; setBtns(false);
 };
-const confirmRedo = false; // আগে শেষ হওয়া ভাগ বাদ দিয়ে চলে (আবার করতে সারির "আবার OCR" চাপুন)
 
 function downloadTxt(i) {
   const p = parts[i]; if (!p.text) return;
@@ -668,7 +800,11 @@ async function pvRender() {
   setStatus('প্রিভিউ তৈরি। ডানের ছবিতে লেখা পরিষ্কার না এলে সেটিং বদলে আবার চাপুন।');
   return b;
 }
-$('#btnPrev').onclick = async () => { if (busy) return; busy = true; try { await pvRender(); } catch (e) { setStatus('সমস্যা: ' + e.message); } busy = false; };
+$('#btnPrev').onclick = async () => {
+  if (busy) return; busy = true;
+  try { await pvRender(); } catch (e) { setStatus('সমস্যা: ' + e.message); }
+  busy = false;
+};
 $('#btnTest').onclick = async () => {
   if (busy) return; busy = true; setBtns(true);
   try {
@@ -686,21 +822,76 @@ $('#btnTest').onclick = async () => {
   busy = false; setBtns(false);
 };
 
-/* ---------- controls ---------- */
+/* ---------- বাটন অবস্থা, স্ক্রিন জাগিয়ে রাখা ---------- */
+async function keepAwake(on) {
+  try {
+    if (on && 'wakeLock' in navigator && !wakeLock) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } else if (!on && wakeLock) {
+      const w = wakeLock; wakeLock = null; await w.release();
+    }
+  } catch (e) { wakeLock = null; }
+}
+// স্ক্রিন বন্ধ/ট্যাব ফিরে এলে wake lock আবার নিতে হয়
+document.addEventListener('visibilitychange', () => {
+  if (busy && document.visibilityState === 'visible') keepAwake(true);
+});
+
 function setBtns(on) {
+  const idle = !on && !!pdf;
   $('#btnStop').disabled = !on;
-  ['#btnZipPdf', '#btnAllOcr', '#btnPrev', '#btnTest'].forEach(s => { if (pdf) $(s).disabled = on; });
-  document.querySelectorAll('#rows button').forEach(b => b.disabled = on || (b.textContent === 'TXT ↓' && false));
+  $('#btnPrev').disabled = !idle;
+  $('#btnTest').disabled = !idle;
+  $('#btnForget').disabled = !idle;
+  $('#btnZipPdf').disabled = !idle || !parts.length;
+  $('#btnAllOcr').disabled = !idle || !parts.length;
+  $('#btnZipTxt').disabled = on || !parts.some(p => p.text);
+  $('#btnClearSaved').disabled = on || !Object.keys(saved).length;
+  document.querySelectorAll('#rows button').forEach(b => b.disabled = on);
+  keepAwake(on);
   if (!on) parts.forEach((p, i) => refreshRow(i));
 }
+
+/* ---------- মুছে ফেলা ---------- */
 $('#btnClearSaved').onclick = async () => {
   if (busy || !file) return;
   if (!confirm('এই PDF-এর সংরক্ষিত সব OCR মুছে যাবে। নিশ্চিত?')) return;
-  await Store.del(fkey()); saved = {}; buildParts(); $('#btnClearSaved').disabled = true;
-  setStatus('সংরক্ষিত OCR মুছে ফেলা হয়েছে।');
+  try { await Store.del(fkey()); } catch (e) { console.error(e); }
+  saved = {}; buildParts(); setBtns(false);
+  setStatus('সংরক্ষিত OCR মুছে ফেলা হয়েছে। PDF ফাইলটি আছে।');
+};
+$('#btnForget').onclick = async () => {
+  if (busy || !file) return;
+  if (!confirm('আপলোড করা PDF ও এর সব OCR ব্রাউজার থেকে মুছে যাবে। নিশ্চিত?')) return;
+  try { await Store.del(fkey()); await Store.delFile(); } catch (e) { console.error(e); }
+  if (pdf) { try { await pdf.destroy(); } catch (e) {} }
+  if (objUrl) URL.revokeObjectURL(objUrl);
+  pdf = null; file = null; objUrl = null; srcDoc = null; total = 0; parts = []; saved = {};
+  $('#fileinfo').textContent = 'এখনো কোনো ফাইল বাছা হয়নি';
+  $('#nameEx').textContent = '—';
+  $('#pvbox').hidden = true; $('#testOut').hidden = true;
+  $('#rows').innerHTML = '<tr><td colspan="4" class="muted">এখনো কিছু নেই</td></tr>';
+  setBar(0); setBtns(false);
+  setStatus('PDF ও সব ডেটা মুছে ফেলা হয়েছে। নতুন PDF বাছুন।');
 };
 $('#btnStop').onclick = () => { stopFlag = true; setStatus('থামানো হচ্ছে (চলমান পেজ শেষ হলে)…'); };
 window.addEventListener('beforeunload', e => { if (busy) { e.preventDefault(); e.returnValue = ''; } });
+
+/* ---------- শুরু ---------- */
+// সেটিং: ডিফল্ট ওয়ার্কার সিপিইউ অনুযায়ী, তারপর সেভ করা পছন্দ বসবে
+$('#workers').value = String(Math.min(3, Math.max(1, Math.floor((navigator.hardwareConcurrency || 4) / 2))));
+loadPrefs();
+PREF_IDS.forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('input', () => { savePrefs(); updateLabels(); });
+  el.addEventListener('change', () => { savePrefs(); updateLabels(); });
+});
+['size', 'prefix'].forEach(id => $('#' + id).addEventListener('input', () => { if (pdf) buildParts(); }));
+updateLabels();
+setBtns(false);
+restoreSaved();
 </script>
 </body>
 </html>
